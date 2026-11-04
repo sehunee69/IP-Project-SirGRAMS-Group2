@@ -1,0 +1,42 @@
+import React from 'react';
+import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+
+export default function NotificationsScreen() {
+  const router = useRouter();
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Ionicons name="arrow-back" size={24} color="#0F172A" />
+        </Pressable>
+        <Text style={styles.headerTitle}>Notifications</Text>
+        <View style={{ width: 24 }} />
+      </View>
+
+      <View style={styles.content}>
+        <Ionicons name="notifications-outline" size={48} color="#94A3B8" />
+        <Text style={styles.emptyText}>No new notifications</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  header: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyText: { marginTop: 12, fontSize: 14, color: '#64748B' },
+});
