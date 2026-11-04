@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, Pressable, Platform } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-export type SirgramsTab = 'map' | 'dashboard' | 'alerts' | 'data';
+export type SirgramsTab = 'map' | 'dashboard' | 'alerts';
 
 interface SirgramsBottomNavProps {
   activeTab: SirgramsTab;
@@ -20,9 +20,6 @@ export function SirgramsBottomNav({ activeTab }: SirgramsBottomNavProps) {
       router.push('/map');
     } else if (tab === 'alerts') {
       router.push('/alerts');
-    } else if (tab === 'data') {
-      // In Figma there's a Data Center view, if user taps it on prototype we can route or notify
-      router.push('/');
     }
   };
 
@@ -79,23 +76,6 @@ export function SirgramsBottomNav({ activeTab }: SirgramsBottomNavProps) {
             activeTab === 'alerts' ? styles.activeLabel : styles.inactiveLabel,
           ]}>
           Alerts
-        </Text>
-      </Pressable>
-
-      <Pressable
-        style={styles.tabItem}
-        onPress={() => handleTabPress('data')}>
-        <Ionicons
-          name={activeTab === 'data' ? 'server' : 'server-outline'}
-          size={22}
-          color={activeTab === 'data' ? '#0F172A' : '#94A3B8'}
-        />
-        <Text
-          style={[
-            styles.tabLabel,
-            activeTab === 'data' ? styles.activeLabel : styles.inactiveLabel,
-          ]}>
-          Data
         </Text>
       </Pressable>
     </View>
