@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 interface SirgramsHeaderProps {
   onMenuPress?: () => void;
@@ -13,6 +14,16 @@ export function SirgramsHeader({
   onNotificationPress,
   hasUnreadNotifications = true,
 }: SirgramsHeaderProps) {
+  const router = useRouter();
+
+  const handleNotificationPress = () => {
+    if (onNotificationPress) {
+      onNotificationPress();
+    } else {
+      router.push('/notifications');
+    }
+  };
+
   return (
     <View style={styles.header}>
       <Pressable
@@ -28,7 +39,7 @@ export function SirgramsHeader({
 
       <Pressable
         hitSlop={8}
-        onPress={onNotificationPress}
+        onPress={handleNotificationPress}
         style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
         <Ionicons name="notifications-outline" size={22} color="#0F172A" />
         {hasUnreadNotifications && <View style={styles.unreadDot} />}
