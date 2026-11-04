@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -19,17 +19,32 @@ import { SirgramsBottomNav } from '@/components/sirgrams/SirgramsBottomNav';
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const [hasUnread, setHasUnread] = useState(true);
+
+  const handleNotificationPress = () => {
+    setHasUnread(false);
+    router.push('/notifications');
+  };
+
+  const handleMenuPress = () => {
+    // Open drawer navigation or menu modal
+  };
 
   return (
     <SafeAreaView style={styles.safeContainer} edges={['top']}>
-      {/* Top Header */}
-      <SirgramsHeader />
+      {/* Integrated Header */}
+      <SirgramsHeader
+        onMenuPress={handleMenuPress}
+        onNotificationPress={handleNotificationPress}
+        hasUnreadNotifications={hasUnread}
+      />
 
       {/* Main Scrollable Content */}
       <ScrollView
         style={styles.scrollContainer}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}>
+        
         {/* Title Block */}
         <View style={styles.titleSection}>
           <Text style={styles.pageTitle}>Overview</Text>
@@ -148,21 +163,18 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.rainfallScaleRow}>
-          {/* Yellow Card */}
           <View style={[styles.scaleCard, styles.yellowScale]}>
             <Text style={[styles.scaleName, { color: '#854D0E' }]}>YELLOW</Text>
             <Text style={styles.scaleRange}>7.5–15 mm/hr</Text>
             <Text style={styles.scaleDesc}>Potentially hazardous</Text>
           </View>
 
-          {/* Orange Card */}
           <View style={[styles.scaleCard, styles.orangeScale]}>
             <Text style={[styles.scaleName, { color: '#9A3412' }]}>ORANGE</Text>
             <Text style={styles.scaleRange}>15–30 mm/hr</Text>
             <Text style={styles.scaleDesc}>Hazardous</Text>
           </View>
 
-          {/* Red Card */}
           <View style={[styles.scaleCard, styles.redScale]}>
             <Text style={[styles.scaleName, { color: '#991B1B' }]}>RED</Text>
             <Text style={styles.scaleRange}>&gt;30 mm/hr</Text>
@@ -193,7 +205,7 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.alertsList}>
-          {/* Alert 1: Flash Flood Warning */}
+          {/* Alert 1 */}
           <Pressable
             style={({ pressed }) => [styles.alertRowCard, pressed && styles.cardPressed]}
             onPress={() => router.push('/alerts')}>
@@ -219,9 +231,10 @@ export default function DashboardScreen() {
             </View>
           </Pressable>
 
-          {/* Alert 2: Coastal Advisory */}
+          {/* Alert 2 */}
           <Pressable
-            style={({ pressed }) => [styles.alertRowCard, pressed && styles.cardPressed]}>
+            style={({ pressed }) => [styles.alertRowCard, pressed && styles.cardPressed]}
+            onPress={() => router.push('/alerts')}>
             <View style={styles.alertTopBar}>
               <View style={styles.alertLeftHeader}>
                 <View style={[styles.alertIconBadge, { backgroundColor: '#EA580C' }]}>
@@ -244,9 +257,10 @@ export default function DashboardScreen() {
             </View>
           </Pressable>
 
-          {/* Alert 3: Volcanic Ash Fall */}
+          {/* Alert 3 */}
           <Pressable
-            style={({ pressed }) => [styles.alertRowCard, pressed && styles.cardPressed]}>
+            style={({ pressed }) => [styles.alertRowCard, pressed && styles.cardPressed]}
+            onPress={() => router.push('/alerts')}>
             <View style={styles.alertTopBar}>
               <View style={styles.alertLeftHeader}>
                 <View style={[styles.alertIconBadge, { backgroundColor: '#D97706' }]}>
