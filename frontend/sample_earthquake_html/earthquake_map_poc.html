@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SirGRAMS Earthquake Map PoC</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
+    />
+    <style>
+      :root {
+        --ink: #1c2530;
+        --muted: #5d6b7a;
+        --line: #d9dee4;
+        --panel: #f6f7f9;
+        --mag-low: #e9c46a;
+        --mag-mid: #e76f51;
+        --mag-high: #9b1d20;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        color: var(--ink);
+        display: grid;
+        grid-template-columns: 340px 1fr;
+      }
+      aside {
+        background: var(--panel);
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      header {
+        padding: 16px 18px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      h1 {
+        font-size: 1.05rem;
+        margin: 0 0 4px;
+      }
+      #status {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin: 0;
+      }
+      #status.error {
+        color: var(--mag-high);
+      }
+      #list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        overflow-y: auto;
+        flex: 1;
+      }
+      #list button {
+        display: grid;
+        grid-template-columns: 48px 1fr;
+        gap: 12px;
+        width: 100%;
+        text-align: left;
+        padding: 12px 18px;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+      }
+      #list button:hover {
+        background: #eceff3;
+      }
+      #list button:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: -2px;
+      }
+      .mag {
+        font-size: 1.25rem;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+      .where {
+        font-size: 0.9rem;
+        line-height: 1.35;
+      }
+      .meta {
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      #map {
+        height: 100%;
+        min-height: 320px;
+      }
+      @media (max-width: 760px) {
+        body {
+          grid-template-columns: 1fr;
+          grid-template-rows: 45vh 1fr;
+        }
+        aside {
+          order: 2;
+          border-right: 0;
+          border-top: 1px solid var(--line);
+        }
+        #map {
+          order: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <aside>
+      <header>
+        <h1>Recent earthquakes</h1>
+        <p id="status">Loading...</p>
+      </header>
+      <ul id="list"></ul>
+    </aside>
+    <div id="map"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script>
+      // Change this if your API runs on a different port.
+      const API_URL = "http://localhost:5245/api/earthquakes?limit=50";
+      const REFRESH_MS = 60000;
+
+      const map = L.map("map").setView([12.5, 122], 6);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 18,
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+
+      const markerLayer = L.layerGroup().addTo(map);
+      const statusEl = document.getElementById("status");
+      const listEl = document.getElementById("list");
+
+      function colorFor(magnitude) {
+        if (magnitude >= 5)
+          return getComputedStyle(document.documentElement)
+            .getPropertyValue("--mag-high")
+            .trim();
+        if (magnitude >= 3.5)
+          return getComputedStyle(document.documentElement)
+            .getPropertyValue("--mag-mid")
+            .trim();
+        return getComputedStyle(document.documentElement)
+          .getPropertyValue("--mag-low")
+          .trim();
+      }
+
+      function radiusFor(magnitude) {
+        return 4 + magnitude * 2.5;
+      }
+
+      function formatTime(iso) {
+        return new Date(iso).toLocaleString(undefined, {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+      }
+
+      function render(earthquakes) {
+        markerLayer.clearLayers();
+        listEl.replaceChildren();
+
+        earthquakes.forEach(function (eq) {
+          const marker = L.circleMarker([eq.latitude, eq.longitude], {
+            radius: radiusFor(eq.magnitude),
+            color: "#ffffff",
+            weight: 1.5,
+            fillColor: colorFor(eq.magnitude),
+            fillOpacity: 0.85,
+          }).addTo(markerLayer);
+
+          marker.bindPopup(
+            "<strong>M " +
+              eq.magnitude.toFixed(1) +
+              "</strong><br>" +
+              escapeHtml(eq.locationDescription) +
+              "<br>" +
+              "Depth " +
+              eq.depthKm +
+              " km<br>" +
+              formatTime(eq.occurredAt),
+          );
+
+          const item = document.createElement("li");
+          const button = document.createElement("button");
+          button.type = "button";
+          button.innerHTML =
+            '<span class="mag" style="color:' +
+            colorFor(eq.magnitude) +
+            '">' +
+            eq.magnitude.toFixed(1) +
+            "</span>" +
+            '<span><span class="where">' +
+            escapeHtml(eq.locationDescription) +
+            "</span>" +
+            '<div class="meta">' +
+            formatTime(eq.occurredAt) +
+            " · " +
+            eq.depthKm +
+            " km deep</div></span>";
+          button.addEventListener("click", function () {
+            map.flyTo([eq.latitude, eq.longitude], 9);
+            marker.openPopup();
+          });
+          item.appendChild(button);
+          listEl.appendChild(item);
+        });
+
+        if (earthquakes.length > 0) {
+          const bounds = L.latLngBounds(
+            earthquakes.map(function (eq) {
+              return [eq.latitude, eq.longitude];
+            }),
+          );
+          map.fitBounds(bounds, { padding: [40, 40], maxZoom: 8 });
+        }
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      async function load() {
+        try {
+          const response = await fetch(API_URL);
+          if (!response.ok) throw new Error("API returned " + response.status);
+          const earthquakes = await response.json();
+          statusEl.className = "";
+          statusEl.textContent =
+            earthquakes.length === 0
+              ? "No earthquakes stored yet. Run the worker to fetch some."
+              : earthquakes.length +
+                " earthquakes. Updated " +
+                new Date().toLocaleTimeString() +
+                ".";
+          render(earthquakes);
+        } catch (err) {
+          statusEl.className = "error";
+          statusEl.textContent =
+            "Could not load " +
+            API_URL +
+            ". Is the API running, and is CORS enabled for this page?";
+          console.error(err);
+        }
+      }
+
+      load();
+      setInterval(load, REFRESH_MS);
+    </script>
+  </body>
+</html>
