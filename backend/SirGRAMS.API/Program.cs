@@ -1,10 +1,35 @@
+using SirGRAMS.Application.Features.Earthquakes.Queries.GetRecentEarthquakes;
+using SirGRAMS.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+builder.Services.AddInfrastructure(
+    builder.Configuration);
+builder.Services.AddSignalR();
+builder.Services.AddMediatR(configuration =>
+{
+    configuration.RegisterServicesFromAssembly(
+        typeof(GetRecentEarthquakesQuery).Assembly);
+});
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("PoC", policy =>
+        policy.AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod());
+});
+
+builder.Services.AddControllers();
+
 var app = builder.Build();
+
+app.UseCors("PoC");
+
+app.MapControllers();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -21,7 +46,7 @@ var summaries = new[]
 
 app.MapGet("/weatherforecast", () =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
+    var forecast = Enumerable.Range(1, 5).Select(index =>
         new WeatherForecast
         (
             DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
