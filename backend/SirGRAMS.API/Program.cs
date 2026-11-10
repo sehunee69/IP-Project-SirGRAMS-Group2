@@ -17,7 +17,7 @@ builder.Services.AddMediatR(configuration =>
 });
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("PoC", policy =>
+    options.AddPolicy("SirGRAMS", policy =>
         policy.AllowAnyOrigin()
             .AllowAnyHeader()
             .AllowAnyMethod());
@@ -27,7 +27,7 @@ builder.Services.AddControllers();
 
 var app = builder.Build();
 
-app.UseCors("PoC");
+app.UseCors("SirGRAMS");
 
 app.MapControllers();
 
