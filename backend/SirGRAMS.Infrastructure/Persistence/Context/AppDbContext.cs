@@ -12,4 +12,6 @@ public class AppDbContext : DbContext
     }
 
     public DbSet<Earthquake> Earthquakes => Set<Earthquake>();
+    public DbSet<Volcano> Volcanoes => Set<Volcano>();
+    public DbSet<VolcanoBulletin> VolcanoBulletins => Set<VolcanoBulletin>();
 }

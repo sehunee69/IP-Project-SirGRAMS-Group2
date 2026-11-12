@@ -1,9 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure.Internal;
 using SirGRAMS.Application.Common.Interfaces;
-using SirGRAMS.Infrastructure.ExternalServices.Phivolcs;
 using SirGRAMS.Infrastructure.Persistence.Context;
 using SirGRAMS.Infrastructure.Repositories;
 
@@ -33,13 +31,9 @@ public static class DependencyInjection
             IEarthquakeRepository,
             EarthquakeRepository>();
 
-        services.AddHttpClient<
-            IPhivolcsEarthquakeClient,
-            PhivolcsEarthquakeClient>(client =>
-        {
-            client.BaseAddress = new Uri(
-                "https://earthquake.phivolcs.dost.gov.ph/");
-        });
+        services.AddScoped<
+            IVolcanoRepository,
+            VolcanoRepository>();
 
         return services;
     }
