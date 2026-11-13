@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SirGRAMS Hazard Map PoC</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+  :root {
+    --ink: #1c2530; --muted: #5d6b7a; --line: #d9dee4; --panel: #f6f7f9;
+    --mag-low: #e9c46a; --mag-mid: #e76f51; --mag-high: #9b1d20;
+    --alert-0: #8a9199; --alert-1: #e9c46a; --alert-2: #f4a261;
+    --alert-3: #e76f51; --alert-4: #b5282d; --alert-5: #5a0f14;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink);
+    display: grid;
+    grid-template-columns: 350px 1fr;
+  }
+  aside {
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  header { padding: 16px 18px 0; }
+  h1 { font-size: 1.05rem; margin: 0 0 4px; }
+  #status { font-size: 0.85rem; color: var(--muted); margin: 0; }
+  #status.error { color: var(--mag-high); }
+  .legend { font-size: 0.8rem; color: var(--muted); margin: 8px 0 0; }
+  .tabs { display: flex; gap: 4px; margin-top: 12px; border-bottom: 1px solid var(--line); }
+  .tab {
+    flex: 1; padding: 9px 4px; border: 0; background: transparent; font: inherit;
+    color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent;
+  }
+  .tab[aria-selected="true"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--ink); }
+  .tab:focus-visible, .item:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+  .list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+  .item {
+    display: grid; grid-template-columns: 52px 1fr; gap: 12px; width: 100%;
+    text-align: left; padding: 12px 18px; border: 0; border-bottom: 1px solid var(--line);
+    background: transparent; font: inherit; color: inherit; cursor: pointer;
+  }
+  .item:hover { background: #eceff3; }
+  .badge { font-size: 1.25rem; font-weight: 700; line-height: 1.2; }
+  .badge small { display: block; font-size: 0.65rem; font-weight: 600; letter-spacing: 0.04em; color: var(--muted); }
+  .where { font-size: 0.9rem; line-height: 1.35; }
+  .meta { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+  .stale { color: var(--mag-high); }
+  #map { height: 100%; min-height: 320px; }
+  .volcano-icon { background: none; border: 0; }
+  .popup-row { margin-top: 3px; }
+  .popup-row b { font-weight: 600; }
+  @media (max-width: 760px) {
+    body { grid-template-columns: 1fr; grid-template-rows: 45vh 1fr; }
+    aside { order: 2; border-right: 0; border-top: 1px solid var(--line); }
+    #map { order: 1; }
+  }
+</style>
+</head>
+<body>
+<aside>
+  <header>
+    <h1>Philippine hazard monitor</h1>
+    <p id="status">Loading...</p>
+    <p class="legend">&#9679; earthquake (size and color by magnitude) &nbsp; &#9650; volcano (color by alert level)</p>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="quakes" aria-selected="true">Earthquakes</button>
+      <button class="tab" role="tab" data-tab="volcanoes" aria-selected="false">Volcanoes</button>
+    </div>
+  </header>
+  <ul id="quake-list" class="list"></ul>
+  <ul id="volcano-list" class="list" hidden></ul>
+</aside>
+<div id="map"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+  // Change this if your API runs on a different port.
+  const API_BASE = "http://localhost:5013";
+  const EARTHQUAKES_URL = API_BASE + "/api/earthquakes?limit=50";
+  const VOLCANOES_URL = API_BASE + "/api/volcanoes";
+  const REFRESH_MS = 60000;
+  const STALE_DAYS = 2;
+
+  const css = getComputedStyle(document.documentElement);
+  const cssVar = function (name) { return css.getPropertyValue(name).trim(); };
+  const ALERT_COLORS = [0, 1, 2, 3, 4, 5].map(function (n) { return cssVar("--alert-" + n); });
+
+  const map = L.map("map").setView([12.5, 122], 6);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: "&copy; OpenStreetMap contributors"
+  }).addTo(map);
+
+  const quakeLayer = L.layerGroup().addTo(map);
+  const volcanoLayer = L.layerGroup().addTo(map);
+  L.control.layers(null, { "Earthquakes": quakeLayer, "Volcanoes": volcanoLayer }, { collapsed: false }).addTo(map);
+
+  const statusEl = document.getElementById("status");
+  const quakeList = document.getElementById("quake-list");
+  const volcanoList = document.getElementById("volcano-list");
+
+  let earthquakes = [];
+  let volcanoes = [];
+  let hasFitted = false;
+
+  // ---------- helpers ----------
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text == null ? "" : String(text);
+    return div.innerHTML;
+  }
+
+  function safeUrl(value) {
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function formatTime(iso) {
+    return new Date(iso).toLocaleString(undefined, {
+      day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit"
+    });
+  }
+
+  // Bulletin dates arrive as "yyyy-MM-dd"; build a local date to avoid a time-zone shift.
+  function parseDay(iso) {
+    const p = iso.split("-");
+    return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  }
+
+  function formatDay(iso) {
+    return parseDay(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  function isStale(iso) {
+    return (Date.now() - parseDay(iso).getTime()) / 86400000 > STALE_DAYS;
+  }
+
+  function quakeColor(magnitude) {
+    if (magnitude >= 5) return cssVar("--mag-high");
+    if (magnitude >= 3.5) return cssVar("--mag-mid");
+    return cssVar("--mag-low");
+  }
+
+  function alertColor(level) {
+    return ALERT_COLORS[Math.max(0, Math.min(5, level))];
+  }
+
+  function showLayer(layer) {
+    if (!map.hasLayer(layer)) layer.addTo(map);
+  }
+
+  // ---------- earthquakes ----------
+  function renderEarthquakes() {
+    quakeLayer.clearLayers();
+    quakeList.replaceChildren();
+
+    earthquakes.forEach(function (eq) {
+      const marker = L.circleMarker([eq.latitude, eq.longitude], {
+        radius: 4 + eq.magnitude * 2.5,
+        color: "#ffffff", weight: 1.5,
+        fillColor: quakeColor(eq.magnitude), fillOpacity: 0.85
+      }).addTo(quakeLayer);
+
+      marker.bindPopup(
+        "<strong>M " + eq.magnitude.toFixed(1) + "</strong><br>" +
+        escapeHtml(eq.locationDescription) + "<br>" +
+        "Depth " + eq.depthKm + " km<br>" + formatTime(eq.occurredAt)
+      );
+
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "item";
+      button.innerHTML =
+        '<span class="badge" style="color:' + quakeColor(eq.magnitude) + '">' + eq.magnitude.toFixed(1) + "</span>" +
+        '<span><span class="where">' + escapeHtml(eq.locationDescription) + "</span>" +
+        '<div class="meta">' + formatTime(eq.occurredAt) + " &middot; " + eq.depthKm + " km deep</div></span>";
+      button.addEventListener("click", function () {
+        showLayer(quakeLayer);
+        map.flyTo([eq.latitude, eq.longitude], 9);
+        marker.openPopup();
+      });
+      item.appendChild(button);
+      quakeList.appendChild(item);
+    });
+  }
+
+  // ---------- volcanoes ----------
+  function volcanoIcon(level) {
+    const known = level != null;
+    const fill = known ? alertColor(level) : cssVar("--alert-0");
+    const svg =
+      '<svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">' +
+      '<path d="M15 3 L28 26 H2 Z" fill="' + fill + '" fill-opacity="' + (known ? "1" : "0.45") +
+      '" stroke="#1c2530" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+    return L.divIcon({
+      html: svg, className: "volcano-icon",
+      iconSize: [30, 30], iconAnchor: [15, 24], popupAnchor: [0, -20]
+    });
+  }
+
+  function row(label, value) {
+    return value == null || value === ""
+      ? ""
+      : '<div class="popup-row"><b>' + label + ":</b> " + escapeHtml(value) + "</div>";
+  }
+
+  function volcanoPopup(v) {
+    const b = v.latestBulletin;
+    let html = "<strong>" + escapeHtml(v.name) + "</strong><br>" + escapeHtml(v.province);
+
+    if (!b) {
+      return html + '<div class="popup-row">No bulletin stored yet.</div>';
+    }
+
+    const link = safeUrl(b.sourceUrl);
+    html +=
+      '<div class="popup-row"><b>Alert level ' + b.alertLevel + "</b> (" + escapeHtml(b.alertDescription) + ")</div>" +
+      row("Bulletin date", formatDay(b.bulletinDate) + (isStale(b.bulletinDate) ? " (out of date)" : "")) +
+      row("Volcanic earthquakes", b.volcanicEarthquakeCount) +
+      row("Sulfur dioxide", b.sulfurDioxideTonnesPerDay == null
+        ? null : Math.round(b.sulfurDioxideTonnesPerDay).toLocaleString() + " tonnes/day") +
+      row("Plume", b.plume) +
+      row("Ground deformation", b.groundDeformation);
+
+    if (link) {
+      html += '<div class="popup-row"><a href="' + escapeHtml(link) +
+        '" target="_blank" rel="noopener">Open PHIVOLCS bulletin</a></div>';
+    }
+    return html;
+  }
+
+  function renderVolcanoes() {
+    volcanoLayer.clearLayers();
+    volcanoList.replaceChildren();
+
+    const sorted = volcanoes.slice().sort(function (a, b) {
+      const la = a.latestBulletin ? a.latestBulletin.alertLevel : -1;
+      const lb = b.latestBulletin ? b.latestBulletin.alertLevel : -1;
+      return lb - la || a.name.localeCompare(b.name);
+    });
+
+    sorted.forEach(function (v) {
+      const b = v.latestBulletin;
+      const marker = L.marker([v.latitude, v.longitude], {
+        icon: volcanoIcon(b ? b.alertLevel : null), title: v.name
+      }).addTo(volcanoLayer);
+      marker.bindPopup(volcanoPopup(v));
+
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "item";
+
+      const badge = b
+        ? '<span class="badge" style="color:' + alertColor(b.alertLevel) + '">' + b.alertLevel + "<small>ALERT</small></span>"
+        : '<span class="badge" style="color:' + cssVar("--alert-0") + '">&ndash;<small>NO DATA</small></span>';
+      const detail = b
+        ? escapeHtml(b.alertDescription) + " &middot; " + formatDay(b.bulletinDate) +
+          (isStale(b.bulletinDate) ? ' <span class="stale">(out of date)</span>' : "")
+        : "No bulletin stored yet";
+
+      button.innerHTML = badge +
+        '<span><span class="where">' + escapeHtml(v.name) + "</span>" +
+        '<div class="meta">' + escapeHtml(v.province) + "</div>" +
+        '<div class="meta">' + detail + "</div></span>";
+      button.addEventListener("click", function () {
+        showLayer(volcanoLayer);
+        map.flyTo([v.latitude, v.longitude], 10);
+        marker.openPopup();
+      });
+      item.appendChild(button);
+      volcanoList.appendChild(item);
+    });
+  }
+
+  // ---------- tabs ----------
+  function showTab(name) {
+    document.querySelectorAll(".tab").forEach(function (tab) {
+      tab.setAttribute("aria-selected", String(tab.dataset.tab === name));
+    });
+    quakeList.hidden = name !== "quakes";
+    volcanoList.hidden = name !== "volcanoes";
+  }
+  document.querySelectorAll(".tab").forEach(function (tab) {
+    tab.addEventListener("click", function () { showTab(tab.dataset.tab); });
+  });
+
+  // ---------- loading ----------
+  async function fetchJson(url) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(url + " returned " + response.status);
+    return response.json();
+  }
+
+  function fitToData() {
+    const points = earthquakes.concat(volcanoes).map(function (p) { return [p.latitude, p.longitude]; });
+    if (points.length > 0 && !hasFitted) {
+      map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 8 });
+      hasFitted = true;
+    }
+  }
+
+  async function load() {
+    const results = await Promise.allSettled([fetchJson(EARTHQUAKES_URL), fetchJson(VOLCANOES_URL)]);
+    const failed = [];
+
+    if (results[0].status === "fulfilled") {
+      earthquakes = results[0].value;
+      renderEarthquakes();
+    } else {
+      failed.push("earthquakes");
+      console.error(results[0].reason);
+    }
+
+    if (results[1].status === "fulfilled") {
+      volcanoes = results[1].value;
+      renderVolcanoes();
+    } else {
+      failed.push("volcanoes");
+      console.error(results[1].reason);
+    }
+
+    fitToData();
+
+    if (failed.length > 0) {
+      statusEl.className = "error";
+      statusEl.textContent = "Could not load " + failed.join(" and ") +
+        ". Is the API running at " + API_BASE + ", and is CORS enabled?";
+      return;
+    }
+
+    statusEl.className = "";
+    statusEl.textContent = earthquakes.length + " earthquakes, " + volcanoes.length +
+      " volcanoes. Updated " + new Date().toLocaleTimeString() + ".";
+  }
+
+  load();
+  setInterval(load, REFRESH_MS);
+</script>
+</body>
+</html>
