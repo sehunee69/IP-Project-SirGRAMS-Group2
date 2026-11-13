@@ -15,4 +15,7 @@ public interface IVolcanoRepository
     Task AddBulletinAsync(
         VolcanoBulletin bulletin,
         CancellationToken cancellationToken);
+
+    Task<List<(Volcano Volcano, VolcanoBulletin? LatestBulletin)>> GetAllWithLatestBulletinAsync(
+        CancellationToken cancellationToken);
 }

@@ -44,4 +44,29 @@ public sealed class VolcanoRepository : IVolcanoRepository
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<List<(Volcano Volcano, VolcanoBulletin? LatestBulletin)>>
+        GetAllWithLatestBulletinAsync(
+            CancellationToken cancellationToken)
+    {
+        var volcanoes = await _dbContext.Volcanoes
+            .AsNoTracking()
+            .OrderBy(v => v.Name)
+            .ToListAsync(cancellationToken);
+
+        var latestBulletins = await _dbContext.VolcanoBulletins
+            .AsNoTracking()
+            .Where(b => b.BulletinDate == _dbContext.VolcanoBulletins
+                .Where(other => other.VolcanoId == b.VolcanoId)
+                .Max(other => other.BulletinDate))
+            .ToListAsync(cancellationToken);
+
+        var byVolcano = latestBulletins
+            .GroupBy(b => b.VolcanoId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        return volcanoes
+            .Select(v => (v, byVolcano.GetValueOrDefault(v.Id)))
+            .ToList();
+    }
 }
