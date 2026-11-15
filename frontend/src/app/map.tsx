@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,30 +9,132 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 import { SirgramsHeader } from '@/components/sirgrams/SirgramsHeader';
 import { SirgramsBottomNav } from '@/components/sirgrams/SirgramsBottomNav';
 import { LiveAdvisoryBar } from '@/components/sirgrams/LiveAdvisoryBar';
-import { PhilippineMapSvg } from '@/components/sirgrams/PhilippineMapSvg';
+import {
+  PhilippineMapSvg,
+  HazardLayer,
+} from '@/components/sirgrams/PhilippineMapSvg';
 
 type HazardType = 'Typhoons' | 'Rainfall' | 'Floods' | 'Earthquakes';
 
-export default function MapScreenTyphoon() {
+const HAZARD_PILLS: HazardType[] = ['Typhoons', 'Rainfall', 'Floods', 'Earthquakes'];
+
+const HAZARD_TO_LAYER: Record<HazardType, HazardLayer> = {
+  Typhoons: 'typhoon',
+  Rainfall: 'rainfall',
+  Floods: 'flood',
+  Earthquakes: 'earthquake',
+};
+
+const LAYER_TO_HAZARD: Record<HazardLayer, HazardType> = {
+  typhoon: 'Typhoons',
+  rainfall: 'Rainfall',
+  flood: 'Floods',
+  earthquake: 'Earthquakes',
+};
+
+const THREAT_DATA: Record<
+  HazardType,
+  {
+    marquee: string;
+    badge: string;
+    badgeBg: string;
+    badgeColor: string;
+    timestamp: string;
+    title: string;
+    subtitle: string;
+    col1Label: string;
+    col1Value: string;
+    col2Label: string;
+    col2Value: string;
+  }
+> = {
+  Typhoons: {
+    marquee: 'TCWS SIGNAL #2 RAISED OVER BATANES & CAGAYAN — TYPHOON AGHON TRACKING NNW...',
+    badge: 'ACTIVE THREAT',
+    badgeBg: '#FEE2E2',
+    badgeColor: '#DC2626',
+    timestamp: '14:30 PHT',
+    title: 'Typhoon AGHON (ELEANOR)',
+    subtitle: 'Cat 3 Equivalent • Tracking NNW • TCWS Signal #2',
+    col1Label: 'MAX WINDS',
+    col1Value: '175 km/h',
+    col2Label: 'EST. LANDFALL',
+    col2Value: '~18 hrs',
+  },
+  Rainfall: {
+    marquee: 'BULACAN & NCR — POTENTIAL SEVERE THUNDERSTORMS WITHIN 2 HOURS...',
+    badge: 'HEAVY RAINFALL',
+    badgeBg: '#E0F2FE',
+    badgeColor: '#0284C7',
+    timestamp: '14:15 PHT',
+    title: 'Southwest Monsoon & Squall Line',
+    subtitle: 'Orange Rainfall Warning • Bicol, Eastern Visayas & NCR',
+    col1Label: 'PEAK RAINFALL',
+    col1Value: '48.5 mm/h',
+    col2Label: 'WIND GUSTS',
+    col2Value: 'ENE 42 km/h',
+  },
+  Floods: {
+    marquee: 'CRITICAL WATER LEVEL ALERT — PAMPANGA & MARIKINA RIVER BASINS AT 85% SATURATION...',
+    badge: 'FLOOD WARNING',
+    badgeBg: '#FEF3C7',
+    badgeColor: '#B45309',
+    timestamp: '14:00 PHT',
+    title: 'Pampanga & Marikina River Basins',
+    subtitle: 'High Susceptibility • Low-lying NCR & Central Luzon',
+    col1Label: 'WATER LEVEL',
+    col1Value: '18.4 m',
+    col2Label: 'SOIL SATURATION',
+    col2Value: '85% HIGH',
+  },
+  Earthquakes: {
+    marquee: 'PHIVOLCS SEISMIC BULLETIN — M 6.2 TECTONIC EARTHQUAKE OFF DAVAO ORIENTAL...',
+    badge: 'SEISMIC ALERT',
+    badgeBg: '#FEE2E2',
+    badgeColor: '#DC2626',
+    timestamp: '13:48 PHT',
+    title: 'M 6.2 — Mati, Davao Oriental',
+    subtitle: 'Philippine Trench • Depth: 24 km • Aftershocks Expected',
+    col1Label: 'MAGNITUDE',
+    col1Value: '6.2 Mw',
+    col2Label: 'MAX INTENSITY',
+    col2Value: 'PEIS VI',
+  },
+};
+
+export default function MapScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ hazard?: string }>();
   const [selectedHazard, setSelectedHazard] = useState<HazardType>('Typhoons');
   const [searchQuery, setSearchQuery] = useState('');
   const [showThreatCard, setShowThreatCard] = useState(true);
 
-  const hazardPills: HazardType[] = ['Typhoons', 'Rainfall', 'Floods', 'Earthquakes'];
+  useEffect(() => {
+    if (params.hazard && HAZARD_PILLS.includes(params.hazard as HazardType)) {
+      setSelectedHazard(params.hazard as HazardType);
+      setShowThreatCard(true);
+    }
+  }, [params.hazard]);
+
+  const handleSelectHazard = (hazard: HazardType) => {
+    setSelectedHazard(hazard);
+    setShowThreatCard(true);
+  };
+
+  const activeThreat = THREAT_DATA[selectedHazard];
 
   return (
     <SafeAreaView style={styles.safeContainer} edges={['top']}>
       {/* Top Live Advisory Bar */}
-      <LiveAdvisoryBar marqueeText="BULACAN — POTENTIAL SEVERE THUNDERSTORMS WITHIN 2 HOURS..." />
+      <LiveAdvisoryBar marqueeText={activeThreat.marquee} />
 
       {/* Main Header */}
-      <SirgramsHeader />
+      <SirgramsHeader onNotificationPress={() => router.push('/notifications')} />
 
       {/* Hazard Category Filter Pills */}
       <View style={styles.filterSection}>
@@ -40,12 +142,12 @@ export default function MapScreenTyphoon() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterContent}>
-          {hazardPills.map((hazard) => {
+          {HAZARD_PILLS.map((hazard) => {
             const isSelected = selectedHazard === hazard;
             return (
               <Pressable
                 key={hazard}
-                onPress={() => setSelectedHazard(hazard)}
+                onPress={() => handleSelectHazard(hazard)}
                 style={[
                   styles.filterPill,
                   isSelected ? styles.filterPillSelected : styles.filterPillUnselected,
@@ -68,26 +170,32 @@ export default function MapScreenTyphoon() {
         <View style={styles.searchBar}>
           <Ionicons name="search" size={18} color="#64748B" style={styles.searchIcon} />
           <TextInput
-            placeholder="Search region, province..."
+            placeholder="Search region, province (e.g., Cebu, Davao)..."
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
             style={styles.searchInput}
           />
-          <Pressable style={styles.filterIconBtn}>
-            <Ionicons name="options-outline" size={18} color="#334155" />
-          </Pressable>
+          {searchQuery.length > 0 ? (
+            <Pressable style={styles.filterIconBtn} onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={18} color="#64748B" />
+            </Pressable>
+          ) : (
+            <Pressable
+              style={styles.filterIconBtn}
+              onPress={() => setShowThreatCard((prev) => !prev)}>
+              <Ionicons name="options-outline" size={18} color="#334155" />
+            </Pressable>
+          )}
         </View>
       </View>
 
       {/* Map View Canvas Container */}
       <View style={styles.mapContainer}>
         <PhilippineMapSvg
-          onZoomIn={() => {}}
-          onZoomOut={() => {}}
-          onLayerToggle={() => {}}
-          onLocationPress={() => {}}
-          onLegendPress={() => {}}
+          activeLayer={HAZARD_TO_LAYER[selectedHazard]}
+          onLayerChange={(layer) => handleSelectHazard(LAYER_TO_HAZARD[layer])}
+          searchQuery={searchQuery}
         />
 
         {/* Floating Bottom Threat Card */}
@@ -97,11 +205,13 @@ export default function MapScreenTyphoon() {
             onPress={() => router.push('/alerts')}>
             {/* Header Row */}
             <View style={styles.threatHeader}>
-              <View style={styles.threatBadge}>
-                <View style={styles.redDot} />
-                <Text style={styles.threatBadgeText}>ACTIVE THREAT</Text>
+              <View style={[styles.threatBadge, { backgroundColor: activeThreat.badgeBg }]}>
+                <View style={[styles.redDot, { backgroundColor: activeThreat.badgeColor }]} />
+                <Text style={[styles.threatBadgeText, { color: activeThreat.badgeColor }]}>
+                  {activeThreat.badge}
+                </Text>
               </View>
-              <Text style={styles.threatTimestamp}>14:30 PHT</Text>
+              <Text style={styles.threatTimestamp}>{activeThreat.timestamp}</Text>
               <Pressable
                 hitSlop={8}
                 onPress={(e) => {
@@ -113,22 +223,20 @@ export default function MapScreenTyphoon() {
               </Pressable>
             </View>
 
-            {/* Typhoon Title & Status */}
-            <Text style={styles.threatTitle}>Typhoon AGHON (ELEANOR)</Text>
-            <Text style={styles.threatSubtitle}>
-              Cat 3 Equivalent • Tracking NNW • TCWS Signal #2
-            </Text>
+            {/* Dynamic Hazard Title & Status */}
+            <Text style={styles.threatTitle}>{activeThreat.title}</Text>
+            <Text style={styles.threatSubtitle}>{activeThreat.subtitle}</Text>
 
             {/* 2-Column Metrics Box */}
             <View style={styles.metricsBox}>
               <View style={styles.metricCol}>
-                <Text style={styles.colLabel}>MAX WINDS</Text>
-                <Text style={styles.colValue}>175 km/h</Text>
+                <Text style={styles.colLabel}>{activeThreat.col1Label}</Text>
+                <Text style={styles.colValue}>{activeThreat.col1Value}</Text>
               </View>
               <View style={styles.colDivider} />
               <View style={styles.metricCol}>
-                <Text style={styles.colLabel}>EST. LANDFALL</Text>
-                <Text style={styles.colValue}>~18 hrs</Text>
+                <Text style={styles.colLabel}>{activeThreat.col2Label}</Text>
+                <Text style={styles.colValue}>{activeThreat.col2Value}</Text>
               </View>
             </View>
           </Pressable>
