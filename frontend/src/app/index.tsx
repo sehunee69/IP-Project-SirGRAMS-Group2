@@ -73,7 +73,10 @@ export default function DashboardScreen() {
         <View style={styles.metricsStack}>
           {/* Card 1: Earthquakes */}
           <Pressable
-            style={({ pressed }) => [styles.metricCard, pressed && styles.cardPressed]}>
+            style={({ pressed }) => [styles.metricCard, pressed && styles.cardPressed]}
+            onPress={() =>
+              router.push({ pathname: '/map', params: { hazard: 'Earthquakes' } })
+            }>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
                 <Ionicons name="pulse" size={18} color="#0F172A" />
@@ -130,7 +133,9 @@ export default function DashboardScreen() {
           {/* Card 3: Flooding */}
           <Pressable
             style={({ pressed }) => [styles.metricCard, pressed && styles.cardPressed]}
-            onPress={() => router.push('/map')}>
+            onPress={() =>
+              router.push({ pathname: '/map', params: { hazard: 'Floods' } })
+            }>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
                 <Ionicons name="water" size={18} color="#0F172A" />
