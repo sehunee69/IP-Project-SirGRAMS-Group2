@@ -1,92 +1,117 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { SirgramsSidebar } from './SirGramsSidebar';
 
 interface SirgramsHeaderProps {
   onMenuPress?: () => void;
   onNotificationPress?: () => void;
   hasUnreadNotifications?: boolean;
+  unreadCount?: number;
 }
 
 export function SirgramsHeader({
   onMenuPress,
   onNotificationPress,
   hasUnreadNotifications = true,
+  unreadCount = 3,
 }: SirgramsHeaderProps) {
-  const router = useRouter();
+  const [sidebarVisible, setSidebarVisible] = useState(false);
 
-  const handleNotificationPress = () => {
-    if (onNotificationPress) {
-      onNotificationPress();
-    } else {
-      router.push('/notifications');
-    }
+  const handleOpenMenu = () => {
+    setSidebarVisible(true);
+    onMenuPress?.();
   };
 
   return (
-    <View style={styles.header}>
-      <Pressable
-        hitSlop={8}
-        onPress={onMenuPress}
-        style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-        <Ionicons name="menu-outline" size={24} color="#0F172A" />
-      </Pressable>
+    <>
+      <View style={styles.header}>
+        {/* Left Hamburger Menu Button */}
+        <Pressable
+          onPress={handleOpenMenu}
+          hitSlop={10}
+          style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+          <Ionicons name="menu" size={24} color="#0F172A" />
+        </Pressable>
 
-      <View style={styles.titleContainer}>
-        <Text style={styles.title}>SirGRAMS</Text>
+        {/* Center Brand Identity */}
+        <View style={styles.brandCenter}>
+          <View style={styles.logoBadge}>
+            <MaterialCommunityIcons name="radar" size={16} color="#FFFFFF" />
+          </View>
+          <Text style={styles.brandText}>SirGRAMS</Text>
+        </View>
+
+        {/* Right Notification Bell */}
+        <Pressable
+          onPress={onNotificationPress}
+          hitSlop={10}
+          style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+          <Ionicons name="notifications-outline" size={22} color="#0F172A" />
+          {hasUnreadNotifications && <View style={styles.unreadDot} />}
+        </Pressable>
       </View>
 
-      <Pressable
-        hitSlop={8}
-        onPress={handleNotificationPress}
-        style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
-        <Ionicons name="notifications-outline" size={22} color="#0F172A" />
-        {hasUnreadNotifications && <View style={styles.unreadDot} />}
-      </Pressable>
-    </View>
+      {/* Slide-Over Sidebar Drawer */}
+      <SirgramsSidebar
+        visible={sidebarVisible}
+        onClose={() => setSidebarVisible(false)}
+        unreadCount={hasUnreadNotifications ? unreadCount : 0}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   header: {
-    height: 52,
-    backgroundColor: '#FFFFFF',
+    height: 54,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
-  iconButton: {
+  iconBtn: {
     width: 36,
     height: 36,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
+    position: 'relative',
   },
   pressed: {
-    opacity: 0.6,
+    opacity: 0.65,
+    backgroundColor: '#F1F5F9',
   },
-  titleContainer: {
+  brandCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  logoBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: {
-    fontSize: 20,
+  brandText: {
+    fontSize: 18,
     fontWeight: '800',
     color: '#0F172A',
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   unreadDot: {
     position: 'absolute',
-    top: 6,
-    right: 7,
+    top: 7,
+    right: 8,
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#EF4444',
+    backgroundColor: '#DC2626',
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
   },
